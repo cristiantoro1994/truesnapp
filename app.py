@@ -1,80 +1,49 @@
-# =====================================================================
-# TrueSnapp - Aplicación principal
-# =====================================================================
-# Este es el punto de entrada de la app. Cuando ejecutas en la terminal:
+# Este es el punto de entrada de la app. Para ejecutarla:
 #     streamlit run app.py
-# Streamlit lee este archivo y carga la interfaz en el navegador.
 #
-# En la Fase 1 (actual) solo mostramos una pantalla de bienvenida
-# para confirmar que el entorno está bien configurado.
-# En las próximas fases añadiremos: login, dashboard, subida de fotos, etc.
-# =====================================================================
+# Este archivo orquesta TODA la app en 4 pasos sencillos:
+#   1. Configurar la página (título, icono, layout)
+#   2. Aplicar los estilos visuales de TrueSnapp
+#   3. Inicializar el estado de sesión
+#   4. Mostrar la pantalla correspondiente (router)
+
 
 import streamlit as st
 
+# Importamos las funciones que creamos en otros archivos
+from utils.estilos import aplicar_estilos
+from utils.helpers import inicializar_estado, mostrar_pagina_actual
 
-# ---------------------------------------------------------------------
-# Configuración general de la página
-# ---------------------------------------------------------------------
-# Esta función SIEMPRE debe ir al inicio, antes que cualquier otra
-# instrucción de Streamlit. Define cómo se ve la pestaña del navegador.
+
+# 1. Configuración general de la página
+
+# Esta función SIEMPRE debe ir antes que cualquier otra de Streamlit.
 st.set_page_config(
-    page_title="TrueSnapp",            # Título que aparece en la pestaña
+    page_title="TrueSnapp",            # Título en la pestaña del navegador
     page_icon="📸",                     # Icono de la pestaña
-    layout="centered",                  # Diseño centrado (mejor para móvil)
-    initial_sidebar_state="collapsed",  # Sin barra lateral al inicio
+    layout="centered",                  # Diseño centrado (ideal móvil)
+    initial_sidebar_state="collapsed",  # Sin barra lateral
 )
 
 
-# ---------------------------------------------------------------------
-# Inicialización del estado de sesión
-# ---------------------------------------------------------------------
-# st.session_state es la "memoria" de la app entre interacciones.
-# Aquí guardaremos la pantalla actual, el usuario logueado, etc.
-# Por ahora solo creamos la variable "pagina" para la navegación.
-if "pagina" not in st.session_state:
-    st.session_state.pagina = "inicio"
+# 2. Aplicar los estilos visuales de TrueSnapp
+
+# Inyecta el CSS personalizado: colores, botones grandes, tarjetas, etc.
+aplicar_estilos()
 
 
-# ---------------------------------------------------------------------
-# Pantalla de bienvenida (provisional - Fase 1)
-# ---------------------------------------------------------------------
-# En la Fase 2 esto será reemplazado por el sistema de navegación real
-# que dirige al login, dashboard, etc. según el estado de session_state.
-def mostrar_bienvenida():
-    """Muestra la pantalla inicial de TrueSnapp."""
+# 3. Inicializar el estado de sesión
 
-    # Título principal de la app
-    st.title("📸 TrueSnapp")
-
-    # Subtítulo descriptivo
-    st.subheader("Optimiza, certifica y descarga las fotos de tu alojamiento")
-
-    # Línea separadora
-    st.divider()
-
-    # Mensaje de bienvenida
-    st.write(
-        "Bienvenido a **TrueSnapp**, la herramienta que te permite mejorar "
-        "automáticamente las fotos de tu alojamiento turístico con "
-        "inteligencia artificial y certificarlas con blockchain."
-    )
-
-    # Mensaje informativo (verde) confirmando que la app funciona
-    st.success("✅ La aplicación se ha iniciado correctamente.")
-
-    # Información sobre la fase actual del desarrollo
-    st.info(
-        "🚧 **Fase 1 completada:** entorno, estructura y repositorio listos.\n\n"
-        "Las siguientes pantallas (login, dashboard, subida de fotos) "
-        "se implementarán en las próximas fases."
-    )
+# Crea las variables básicas (página actual, usuario, etc.) si no existen.
+inicializar_estado()
 
 
-# ---------------------------------------------------------------------
-# Punto de arranque del programa
-# ---------------------------------------------------------------------
-# Aquí decidimos qué pantalla mostrar según session_state.pagina.
-# Por ahora solo existe la pantalla de bienvenida.
-if st.session_state.pagina == "inicio":
-    mostrar_bienvenida()
+# 4. Mostrar la pantalla correspondiente (router)
+
+# Decide qué pantalla mostrar según st.session_state.pagina:
+#   - login → paginas/login.py
+#   - dashboard → paginas/dashboard.py
+#   - galeria → paginas/galeria.py
+#   - certificado → paginas/certificado.py
+#   - descargas → paginas/descargas.py
+mostrar_pagina_actual()

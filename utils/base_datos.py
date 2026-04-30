@@ -1,11 +1,6 @@
-# =====================================================================
-# utils/base_datos.py
-# =====================================================================
 # Conexión y operaciones con la base de datos SQLite.
 # Aquí gestionaremos: usuarios, proyectos, imágenes y certificados.
-#
-# 📌 Este módulo se desarrollará en la FASE 6 (Base de datos).
-# =====================================================================
+
 
 import sqlite3
 

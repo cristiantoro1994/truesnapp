@@ -1,13 +1,10 @@
-# =====================================================================
 # Dependencias del proyecto TrueSnapp
-# =====================================================================
 # Para instalar todas las librerías de este archivo, ejecuta en la terminal:
 #     pip install -r requirements.txt
 #
 # Usamos ">=" (versión mínima) en lugar de "==" (versión exacta).
 # Esto permite a pip elegir la última versión compatible con tu Python
 # que tenga "wheels" precompilados, evitando errores de compilación.
-# =====================================================================
 
 # --- Framework de la interfaz ---
 streamlit>=1.39.0          # Framework principal para construir la app web

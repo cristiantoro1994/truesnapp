@@ -1,19 +1,35 @@
-# =====================================================================
-# paginas/descargas.py
-# =====================================================================
-# Gestión y vista centralizada de descargas:
+# Pantalla centralizada de descargas:
 #   - Imagen original
 #   - Imagen optimizada con IA
-#   - Certificado TrueSnapp
+#   - Certificado TrueSnapp en JPG/PNG
 #   - Paquete completo (imagen + certificado)
-#
-# 📌 Se desarrollará en la FASE 7 (Exportación y descarga).
-# =====================================================================
 
 import streamlit as st
 
 
 def mostrar():
     """Muestra la pantalla de descargas."""
-    st.title("Descargas")
-    # Se completará en la Fase 7.
+
+    # Botón de volver
+
+    if st.button("← Volver al dashboard", key="volver_descargas"):
+        st.session_state.pagina = "dashboard"
+        st.rerun()
+
+    # Título de la pantalla
+    
+    st.markdown("## ⬇️ Descargas")
+
+    st.markdown("---")
+
+    # Mensaje provisional
+
+    st.info(
+        "🚧 **Pantalla en construcción**\n\n"
+        "Desde aquí podrás descargar con un solo clic:\n"
+        "- 📷 La imagen original\n"
+        "- ✨ La imagen optimizada con IA\n"
+        "- 🔐 El certificado TrueSnapp\n"
+        "- 📦 El paquete completo (imagen + certificado)\n\n"
+    
+    )

@@ -1,0 +1,10 @@
+# Forzamos el tema claro para mantener la paleta de la app
+# (blanco + azul tecnológico) sin importar el tema del sistema.
+
+[theme]
+base = "light"
+primaryColor = "#1E88E5"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F7FA"
+textColor = "#2C3E50"
+font = "sans serif"
