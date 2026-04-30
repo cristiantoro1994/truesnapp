@@ -1,0 +1,25 @@
+# =====================================================================
+# Dependencias del proyecto TrueSnapp
+# =====================================================================
+# Para instalar todas las librerías de este archivo, ejecuta en la terminal:
+#     pip install -r requirements.txt
+#
+# Usamos ">=" (versión mínima) en lugar de "==" (versión exacta).
+# Esto permite a pip elegir la última versión compatible con tu Python
+# que tenga "wheels" precompilados, evitando errores de compilación.
+# =====================================================================
+
+# --- Framework de la interfaz ---
+streamlit>=1.39.0          # Framework principal para construir la app web
+
+# --- Procesamiento de imágenes (Fases 3 y 4) ---
+Pillow>=10.4.0             # Manipulación básica de imágenes (abrir, guardar, redimensionar)
+opencv-python>=4.10.0      # Procesamiento avanzado de imágenes y filtros
+numpy>=1.26.0              # Operaciones numéricas (necesario para OpenCV)
+
+# --- Certificación blockchain (Fase 5) ---
+# hashlib viene incluido en Python, no hay que instalarlo
+requests>=2.32.0           # Peticiones HTTP para registrar hashes en blockchain
+
+# --- Base de datos (Fase 6) ---
+# sqlite3 viene incluido en Python, no hay que instalarlo
