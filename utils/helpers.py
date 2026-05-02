@@ -141,43 +141,49 @@ CARPETA_RAIZ_IMAGENES = Path("datos/imagenes")
 EXTENSIONES_PERMITIDAS = ["jpg", "jpeg", "png"]
 
 
-def carpeta_proyecto(nombre_proyecto):
+def carpeta_proyecto(proyecto):
     """
     Devuelve la ruta de la carpeta de un proyecto.
     No crea la carpeta, solo calcula su ruta.
 
+    Usa el ID único del proyecto en lugar del nombre.
+    Esto evita que dos proyectos con el mismo nombre compartan
+    carpeta y se mezclen las fotos.
+
+    Parámetros:
+      proyecto: diccionario con al menos las claves 'id' y 'nombre'.
+
     Ejemplo:
-      carpeta_proyecto("Casa Playa") → datos/imagenes/Casa_Playa
+      proyecto = {"id": "a1b2c3d4", "nombre": "Casa Playa"}
+      carpeta_proyecto(proyecto) → datos/imagenes/a1b2c3d4
     """
-    # Reemplazamos espacios por guiones bajos para evitar problemas
-    nombre_limpio = nombre_proyecto.strip().replace(" ", "_")
-    return CARPETA_RAIZ_IMAGENES / nombre_limpio
+    return CARPETA_RAIZ_IMAGENES / proyecto["id"]
 
 
-def crear_carpeta_proyecto(nombre_proyecto):
+def crear_carpeta_proyecto(proyecto):
     """
     Crea físicamente la carpeta de un proyecto en el disco.
     Si ya existe, no hace nada (no lanza error).
     """
-    ruta = carpeta_proyecto(nombre_proyecto)
+    ruta = carpeta_proyecto(proyecto)
     # parents=True: crea las carpetas padre si no existen
     # exist_ok=True: no protesta si ya existe
     ruta.mkdir(parents=True, exist_ok=True)
     return ruta
 
 
-def guardar_imagen(archivo_subido, nombre_proyecto):
+def guardar_imagen(archivo_subido, proyecto):
     """
     Guarda una imagen subida por el usuario en la carpeta del proyecto.
 
     Parámetros:
       archivo_subido: el archivo que devuelve st.file_uploader
-      nombre_proyecto: nombre del proyecto al que pertenece la foto
+      proyecto: diccionario con los datos del proyecto
 
     Devuelve la ruta donde se guardó la imagen.
     """
     # Aseguramos que la carpeta del proyecto existe
-    carpeta = crear_carpeta_proyecto(nombre_proyecto)
+    carpeta = crear_carpeta_proyecto(proyecto)
 
     # Generamos un nombre único para evitar sobreescribir fotos
     # Ejemplo: "a1b2c3d4_foto.jpg"
@@ -194,29 +200,42 @@ def guardar_imagen(archivo_subido, nombre_proyecto):
     return ruta_completa
 
 
-def listar_imagenes(nombre_proyecto):
+def listar_imagenes(proyecto):
     """
     Devuelve una lista con las rutas de todas las imágenes
     de un proyecto, ordenadas por fecha (más recientes primero).
+
+    Parámetros:
+      proyecto: diccionario con los datos del proyecto.
     """
-    carpeta = carpeta_proyecto(nombre_proyecto)
+    carpeta = carpeta_proyecto(proyecto)
 
     # Si la carpeta no existe, devolvemos lista vacía
     if not carpeta.exists():
         return []
 
-    # Buscamos archivos con las extensiones permitidas
-    imagenes = []
-    for extension in EXTENSIONES_PERMITIDAS:
-        # glob busca archivos que coincidan con un patrón
-        imagenes.extend(carpeta.glob(f"*.{extension}"))
-        imagenes.extend(carpeta.glob(f"*.{extension.upper()}"))
+    # Usamos un conjunto (set) para evitar duplicados automáticamente
+    imagenes_unicas = set()
 
-    # Ordenamos por fecha de modificación (las más recientes primero)
+    # Recorremos TODOS los archivos de la carpeta y filtramos por extensión
+    for archivo in carpeta.iterdir():
+        # Solo nos interesan archivos (no subcarpetas)
+        if not archivo.is_file():
+            continue
+
+        # Sacamos la extensión sin el punto y en minúsculas
+        # Ejemplo: "foto.JPG" → extension = "jpg"
+        extension = archivo.suffix.lower().lstrip(".")
+
+        # Si la extensión está en nuestra lista permitida, la añadimos
+        if extension in EXTENSIONES_PERMITIDAS:
+            imagenes_unicas.add(archivo)
+
+    # Convertimos el conjunto a lista y ordenamos por fecha
+    imagenes = list(imagenes_unicas)
     imagenes.sort(key=lambda x: x.stat().st_mtime, reverse=True)
 
     return imagenes
-
 
 def eliminar_imagen(ruta_imagen):
     """

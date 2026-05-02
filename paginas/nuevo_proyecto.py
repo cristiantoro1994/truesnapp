@@ -73,10 +73,7 @@ def crear_proyecto_nuevo(nombre):
         )
         return
 
-    # ---- CREAR LA CARPETA FÍSICA EN EL DISCO ----
-    crear_carpeta_proyecto(nombre)
-
-    # ---- AÑADIR EL PROYECTO A LA LISTA EN MEMORIA ----
+    # ---- CREAR EL DICCIONARIO DEL PROYECTO ----
     nuevo_proyecto = {
         "id": uuid.uuid4().hex[:8],   # ID único de 8 caracteres
         "nombre": nombre.strip(),
@@ -85,6 +82,12 @@ def crear_proyecto_nuevo(nombre):
         "fotos_certificadas": 0,
         "fecha_creacion": time.strftime("%Y-%m-%d"),
     }
+
+    # ---- CREAR LA CARPETA FÍSICA EN EL DISCO ----
+    # La carpeta se nombra con el ID único del proyecto, no con
+    # el nombre, para evitar colisiones cuando dos proyectos
+    # tengan el mismo nombre.
+    crear_carpeta_proyecto(nuevo_proyecto)
 
     # Si la lista no existe todavía, la inicializamos vacía
     if "proyectos" not in st.session_state:

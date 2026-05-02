@@ -89,7 +89,7 @@ def mostrar_tarjeta_modo_normal(proyecto):
     """Tarjeta normal con botones Abrir y 🗑️."""
 
     # Calcular contadores reales leyendo el disco
-    imagenes = listar_imagenes(proyecto["nombre"])
+    imagenes = listar_imagenes(proyecto)
     total_fotos = len(imagenes)
     fotos_optimizadas = proyecto.get("fotos_optimizadas", 0)
     fotos_certificadas = proyecto.get("fotos_certificadas", 0)
@@ -163,8 +163,8 @@ def eliminar_proyecto_completo(proyecto):
       3. Limpia el estado de confirmación.
       4. Recarga la pantalla.
     """
-    # 1. Borrar la carpeta del disco (con todas las fotos dentro)
-    ruta_carpeta = carpeta_proyecto(proyecto["nombre"])
+   # 1. Borrar la carpeta del disco (con todas las fotos dentro)
+    ruta_carpeta = carpeta_proyecto(proyecto)
     if ruta_carpeta.exists():
         shutil.rmtree(ruta_carpeta)
 

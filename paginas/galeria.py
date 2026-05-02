@@ -1,11 +1,14 @@
+# =====================================================================
+# paginas/galeria.py
+# =====================================================================
 # Galería de imágenes de un proyecto.
 # El usuario puede:
 #   - Ver todas las fotos del proyecto en una rejilla
 #   - Subir nuevas fotos (desde móvil o escritorio)
 #   - Eliminar fotos con doble confirmación
-
+#
 # Las fotos se guardan en: datos/imagenes/[nombre_proyecto]/
-
+# =====================================================================
 
 import streamlit as st
 
@@ -16,18 +19,17 @@ from utils.helpers import guardar_imagen, listar_imagenes, eliminar_imagen
 def mostrar():
     """Muestra la galería de imágenes del proyecto seleccionado."""
 
-    
+    # -----------------------------------------------------------------
     # Botón de volver (siempre arriba)
-   
-    if st.button("← Volver al dashboard", key="volver_galeria"):
-        # Limpiamos cualquier confirmación pendiente al salir
+    # -----------------------------------------------------------------
+    if st.button("← Volver", key="volver_galeria"):
         st.session_state.foto_a_borrar = None
         st.session_state.pagina = "dashboard"
         st.rerun()
 
-    
+    # -----------------------------------------------------------------
     # Buscar el proyecto actual en la lista
-   
+    # -----------------------------------------------------------------
     proyecto = obtener_proyecto_actual()
 
     if proyecto is None:
@@ -36,14 +38,14 @@ def mostrar():
         st.rerun()
         return
 
-   
+    # -----------------------------------------------------------------
     # Cabecera: nombre del proyecto
-  
+    # -----------------------------------------------------------------
     st.markdown(f"## 🏠 {proyecto['nombre']}")
 
-   
+    # -----------------------------------------------------------------
     # Zona de subida de fotos
-   
+    # -----------------------------------------------------------------
     st.markdown("### 📤 Subir fotos")
 
     archivos_subidos = st.file_uploader(
@@ -53,15 +55,22 @@ def mostrar():
         key=f"uploader_{proyecto['id']}",
     )
 
+    # -----------------------------------------------------------------
+    # PROCESAR ARCHIVOS SUBIDOS (con protección contra duplicados)
+    # -----------------------------------------------------------------
+    # Streamlit mantiene los archivos en file_uploader entre reruns,
+    # así que si no controlamos cuáles ya guardamos, los duplicaríamos
+    # cada vez que el script se ejecuta. Por eso guardamos los IDs
+    # de los archivos que YA hemos procesado.
     if archivos_subidos:
-        guardar_archivos_subidos(archivos_subidos, proyecto["nombre"])
+        procesar_archivos_subidos(archivos_subidos, proyecto)
 
     st.markdown("---")
 
-   
+   # -----------------------------------------------------------------
     # Galería: mostrar las fotos del proyecto
-    
-    imagenes = listar_imagenes(proyecto["nombre"])
+    # -----------------------------------------------------------------
+    imagenes = listar_imagenes(proyecto)
     total = len(imagenes)
 
     st.markdown(f"### 📷 Galería ({total} fotos)")
@@ -89,19 +98,47 @@ def obtener_proyecto_actual():
     return None
 
 
-def guardar_archivos_subidos(archivos_subidos, nombre_proyecto):
-    """Guarda en el disco las fotos subidas por el usuario."""
-    cantidad = 0
+def procesar_archivos_subidos(archivos_subidos, proyecto):
+    """
+    Guarda en el disco SOLO las fotos que aún no se hayan procesado.
+
+    Streamlit mantiene los archivos en st.file_uploader entre reruns,
+    lo que provoca que sin control se guarden múltiples veces.
+    Para evitarlo, guardamos los IDs ya procesados en session_state.
+    """
+
+    # Clave única para guardar los IDs procesados de ESTE proyecto
+    clave_estado = f"archivos_procesados_{proyecto['id']}"
+
+    # Si no existe la clave, la creamos como un conjunto vacío (set)
+    if clave_estado not in st.session_state:
+        st.session_state[clave_estado] = set()
+
+    # Conjunto con los IDs de archivos que YA procesamos antes
+    procesados = st.session_state[clave_estado]
+
+    # Contador de archivos guardados en ESTA pasada
+    cantidad_guardada = 0
+
     for archivo in archivos_subidos:
+        # file_id es un identificador único que Streamlit asigna a
+        # cada archivo subido. Si ya lo procesamos, lo saltamos.
+        if archivo.file_id in procesados:
+            continue  # Ya lo guardamos, ignoramos
+
+       # Es un archivo nuevo: lo guardamos
         try:
-            guardar_imagen(archivo, nombre_proyecto)
-            cantidad += 1
+            guardar_imagen(archivo, proyecto)
+            procesados.add(archivo.file_id)
+            cantidad_guardada += 1
         except Exception as error:
             st.error(f"Error al guardar **{archivo.name}**: {error}")
 
-    if cantidad > 0:
-        st.success(f"✅ {cantidad} foto(s) guardada(s) correctamente.")
-        # Limpiamos cualquier confirmación pendiente al subir nuevas fotos
+    # Si guardamos algo nuevo, mostramos mensaje y recargamos
+    if cantidad_guardada > 0:
+        st.success(
+            f"✅ {cantidad_guardada} foto(s) guardada(s) correctamente."
+        )
         st.session_state.foto_a_borrar = None
         st.rerun()
 
@@ -144,20 +181,16 @@ def mostrar_miniatura_con_borrar(ruta_imagen):
     # Variable de estado: ¿qué foto está esperando confirmación?
     foto_pendiente = st.session_state.get("foto_a_borrar", None)
 
-    # Si esta foto SÍ tiene confirmación pendiente
     if foto_pendiente == id_foto:
         # Mostramos aviso amarillo + botón de confirmación
         st.warning("¿Seguro? Pulsa otra vez para borrar.")
         if st.button("🗑️ Confirmar borrado", key=f"confirmar_{id_foto}"):
-            # Eliminamos la foto del disco
             eliminar_imagen(ruta_imagen)
-            # Limpiamos el estado
             st.session_state.foto_a_borrar = None
             st.rerun()
     else:
         # Botón normal de borrar (primer paso de la confirmación)
         if st.button("🗑️ Borrar", key=f"borrar_{id_foto}"):
-            # Marcamos esta foto como "pendiente de confirmar"
             st.session_state.foto_a_borrar = id_foto
             st.rerun()
 
