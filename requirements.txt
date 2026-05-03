@@ -20,3 +20,5 @@ requests>=2.32.0           # Peticiones HTTP para registrar hashes en blockchain
 
 # --- Base de datos (Fase 6) ---
 # sqlite3 viene incluido en Python, no hay que instalarlo
+streamlit-image-comparison>=0.0.4
+replicate>=0.25.0

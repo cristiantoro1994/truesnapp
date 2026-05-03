@@ -1,6 +1,3 @@
-# =====================================================================
-# utils/helpers.py
-# =====================================================================
 # Funciones auxiliares reutilizables en toda la app.
 #
 # Contiene:
@@ -8,16 +5,19 @@
 #   2. Cambiar de pantalla
 #   3. Router (decide qué pantalla mostrar)
 #   4. Funciones para gestión de archivos de imágenes
-# =====================================================================
+#   5. Funciones para gestión de versiones optimizadas 
+#   6. Limpieza de archivos temporales 
+
 
 import streamlit as st
+import re                 # Expresiones regulares (limpieza de nombres)
+import unicodedata        # Para quitar acentos
 from pathlib import Path  # Para trabajar con rutas de archivos
 import uuid               # Para generar identificadores únicos
 
 
-# ---------------------------------------------------------------------
 # 1. Inicialización del estado de sesión
-# ---------------------------------------------------------------------
+
 def inicializar_estado():
     """
     Crea las variables básicas de st.session_state si no existen.
@@ -55,9 +55,8 @@ def inicializar_estado():
         st.session_state.proyecto_a_borrar = None
 
 
-# ---------------------------------------------------------------------
 # 2. Cambiar de pantalla
-# ---------------------------------------------------------------------
+
 def cambiar_pagina(nombre_pagina):
     """
     Cambia la pantalla activa de la app.
@@ -75,9 +74,8 @@ def cambiar_pagina(nombre_pagina):
     st.rerun()
 
 
-# ---------------------------------------------------------------------
 # 3. Router: decide qué pantalla mostrar
-# ---------------------------------------------------------------------
+
 def mostrar_pagina_actual():
     """
     Lee st.session_state.pagina y muestra la pantalla correspondiente.
@@ -126,12 +124,11 @@ def mostrar_pagina_actual():
         dashboard.mostrar()
 
 
-# =====================================================================
 # 4. FUNCIONES PARA GESTIÓN DE ARCHIVOS DE IMÁGENES
-# =====================================================================
+
 # Estas funciones manejan la lectura, escritura y borrado de fotos
-# en el disco. Las fotos se guardan en: datos/imagenes/[proyecto]/
-# =====================================================================
+# en el disco. Las fotos se guardan en: datos/imagenes/[id_proyecto]/
+
 
 
 # Carpeta raíz donde se guardan TODAS las imágenes de la app
@@ -172,9 +169,51 @@ def crear_carpeta_proyecto(proyecto):
     return ruta
 
 
+def limpiar_nombre_archivo(nombre):
+    """
+    Limpia un nombre de archivo eliminando caracteres problemáticos.
+
+    Reemplaza:
+      - Caracteres prohibidos en Windows (: ? * < > | / \\) por guion bajo.
+      - Espacios y otros caracteres raros por guion bajo.
+      - Acentos por su versión sin acento (á → a, ñ → n).
+
+    Ejemplo:
+      "WhatsApp Image 2026-05-02 at 16.14.56.jpeg"
+      → "WhatsApp_Image_2026-05-02_at_16.14.56.jpeg"
+    """
+    # Separamos el nombre y la extensión
+    ruta = Path(nombre)
+    nombre_base = ruta.stem
+    extension = ruta.suffix.lower()
+
+    # 1. Quitamos acentos (á → a, ñ → n, etc.)
+    nombre_base = unicodedata.normalize("NFKD", nombre_base)
+    nombre_base = nombre_base.encode("ASCII", "ignore").decode("ASCII")
+
+    # 2. Reemplazamos cualquier carácter que NO sea letra, número,
+    # guion o punto, por un guion bajo
+    nombre_base = re.sub(r"[^a-zA-Z0-9._-]", "_", nombre_base)
+
+    # 3. Eliminamos guiones bajos consecutivos (_ _ _ → _)
+    nombre_base = re.sub(r"_+", "_", nombre_base)
+
+    # 4. Eliminamos guiones bajos al inicio o al final
+    nombre_base = nombre_base.strip("_")
+
+    # Si por algún motivo quedó vacío, le ponemos un nombre por defecto
+    if not nombre_base:
+        nombre_base = "imagen"
+
+    return f"{nombre_base}{extension}"
+
+
 def guardar_imagen(archivo_subido, proyecto):
     """
     Guarda una imagen subida por el usuario en la carpeta del proyecto.
+
+    Limpia el nombre del archivo para evitar problemas con caracteres
+    no permitidos en Windows o problemáticos para OpenCV.
 
     Parámetros:
       archivo_subido: el archivo que devuelve st.file_uploader
@@ -185,10 +224,12 @@ def guardar_imagen(archivo_subido, proyecto):
     # Aseguramos que la carpeta del proyecto existe
     carpeta = crear_carpeta_proyecto(proyecto)
 
+    # Limpiamos el nombre del archivo (quita espacios, dos puntos, etc.)
+    nombre_limpio = limpiar_nombre_archivo(archivo_subido.name)
+
     # Generamos un nombre único para evitar sobreescribir fotos
-    # Ejemplo: "a1b2c3d4_foto.jpg"
     id_unico = uuid.uuid4().hex[:8]  # 8 caracteres aleatorios
-    nombre_archivo = f"{id_unico}_{archivo_subido.name}"
+    nombre_archivo = f"{id_unico}_{nombre_limpio}"
 
     # Ruta completa donde guardaremos la imagen
     ruta_completa = carpeta / nombre_archivo
@@ -205,6 +246,9 @@ def listar_imagenes(proyecto):
     Devuelve una lista con las rutas de todas las imágenes
     de un proyecto, ordenadas por fecha (más recientes primero).
 
+    Ignora los archivos temporales (con .tmp. en el nombre) que
+    pudieran haber quedado de procesos de optimización interrumpidos.
+
     Parámetros:
       proyecto: diccionario con los datos del proyecto.
     """
@@ -217,10 +261,14 @@ def listar_imagenes(proyecto):
     # Usamos un conjunto (set) para evitar duplicados automáticamente
     imagenes_unicas = set()
 
-    # Recorremos TODOS los archivos de la carpeta y filtramos por extensión
+    # Recorremos TODOS los archivos de la carpeta y filtramos
     for archivo in carpeta.iterdir():
         # Solo nos interesan archivos (no subcarpetas)
         if not archivo.is_file():
+            continue
+
+        # Ignoramos archivos temporales de optimización (foto.tmp.jpg)
+        if ".tmp." in archivo.name:
             continue
 
         # Sacamos la extensión sin el punto y en minúsculas
@@ -237,6 +285,7 @@ def listar_imagenes(proyecto):
 
     return imagenes
 
+
 def eliminar_imagen(ruta_imagen):
     """
     Elimina una imagen del disco.
@@ -247,3 +296,104 @@ def eliminar_imagen(ruta_imagen):
         ruta.unlink()  # unlink() es como "borrar archivo"
         return True
     return False
+
+
+# 5. FUNCIONES PARA GESTIÓN DE VERSIONES OPTIMIZADAS 
+
+# A partir de la Fase 4, cada foto puede tener DOS versiones:
+#   - Original  → datos/imagenes/[id_proyecto]/[archivo]
+#   - Optimizada → datos/imagenes/[id_proyecto]/optimizadas/[archivo]
+#
+# La versión optimizada lleva EL MISMO NOMBRE que la original,
+# así sabemos siempre qué optimizada corresponde a cada original.
+
+
+def carpeta_optimizadas(proyecto):
+    """
+    Devuelve la ruta de la subcarpeta de imágenes optimizadas
+    de un proyecto.
+
+    Ejemplo:
+      proyecto = {"id": "a1b2c3d4", ...}
+      → datos/imagenes/a1b2c3d4/optimizadas
+    """
+    return carpeta_proyecto(proyecto) / "optimizadas"
+
+
+def ruta_imagen_optimizada(ruta_original, proyecto):
+    """
+    Calcula dónde se debe guardar (o leer) la versión optimizada
+    de una imagen original.
+
+    Mantiene el mismo nombre de archivo, solo cambia la carpeta.
+
+    Ejemplo:
+      ruta_original = datos/imagenes/a1b2c3d4/foto1.jpg
+      → datos/imagenes/a1b2c3d4/optimizadas/foto1.jpg
+    """
+    # Aseguramos que la subcarpeta existe 
+    carpeta_dest = carpeta_optimizadas(proyecto)
+    carpeta_dest.mkdir(parents=True, exist_ok=True)
+
+    # Devolvemos la ruta con el mismo nombre del archivo original
+    return carpeta_dest / Path(ruta_original).name
+
+
+def existe_version_optimizada(ruta_original, proyecto):
+    """
+    Comprueba si una imagen ya tiene su versión optimizada en disco.
+
+    Devuelve True si existe, False si no.
+    Útil para no procesar dos veces la misma foto.
+    """
+    return ruta_imagen_optimizada(ruta_original, proyecto).exists()
+
+
+# 6. LIMPIEZA DE ARCHIVOS TEMPORALES 
+
+# La función guardar_imagen_cv() del módulo procesamiento/optimizar.py
+# usa escritura atómica: primero escribe a un archivo .tmp.[ext] y
+# luego lo renombra al nombre final. Si algo falla a mitad (caída de
+# luz, proceso interrumpido), puede quedar un archivo huérfano.
+# Esta función los detecta y los borra automáticamente.
+
+
+def limpiar_archivos_temporales(proyecto):
+    """
+    Borra cualquier archivo temporal que pudiera haber quedado de
+    procesos de optimización interrumpidos.
+
+    Detecta archivos cuyo nombre contiene ".tmp." (por ejemplo:
+    foto.tmp.jpg, paisaje.tmp.png), que es el patrón que usa
+    guardar_imagen_cv() para escritura atómica.
+
+    Se ejecuta automáticamente al listar las imágenes de un proyecto,
+    como medida de higiene del sistema de archivos.
+    """
+    def es_temporal(archivo):
+        """Decide si un archivo es un temporal huérfano de optimización."""
+        # El patrón es: [nombre].tmp.[extension]
+        # Ejemplo: foto.tmp.jpg → True
+        # Ejemplo: foto.jpg     → False
+        return ".tmp." in archivo.name
+
+    # Limpiamos en la carpeta del proyecto
+    carpeta_p = carpeta_proyecto(proyecto)
+    if carpeta_p.exists():
+        for archivo in carpeta_p.iterdir():
+            if archivo.is_file() and es_temporal(archivo):
+                try:
+                    archivo.unlink()
+                except OSError:
+                    # Si no se puede borrar (permisos, etc.), seguimos
+                    pass
+
+    # Limpiamos también en la subcarpeta de optimizadas
+    carpeta_opt = carpeta_optimizadas(proyecto)
+    if carpeta_opt.exists():
+        for archivo in carpeta_opt.iterdir():
+            if archivo.is_file() and es_temporal(archivo):
+                try:
+                    archivo.unlink()
+                except OSError:
+                    pass

@@ -11,8 +11,11 @@ import streamlit as st
 import shutil  # Para borrar carpetas con su contenido
 
 # Funciones auxiliares
-from utils.helpers import listar_imagenes, carpeta_proyecto
-
+from utils.helpers import (
+    listar_imagenes,
+    carpeta_proyecto,
+    existe_version_optimizada,
+)
 
 def mostrar():
     """Muestra el dashboard principal con los proyectos del usuario."""
@@ -91,7 +94,13 @@ def mostrar_tarjeta_modo_normal(proyecto):
     # Calcular contadores reales leyendo el disco
     imagenes = listar_imagenes(proyecto)
     total_fotos = len(imagenes)
-    fotos_optimizadas = proyecto.get("fotos_optimizadas", 0)
+
+    # Contar cuántas de esas fotos tienen versión optimizada
+    fotos_optimizadas = sum(
+        1 for img in imagenes if existe_version_optimizada(img, proyecto)
+    )
+
+    # Las certificadas se rellenan en la Fase 5 (Blockchain)
     fotos_certificadas = proyecto.get("fotos_certificadas", 0)
 
     with st.container(border=True):
