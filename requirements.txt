@@ -11,7 +11,7 @@ streamlit>=1.39.0          # Framework principal para construir la app web
 
 # --- Procesamiento de imágenes (Fases 3 y 4) ---
 Pillow>=10.4.0             # Manipulación básica de imágenes (abrir, guardar, redimensionar)
-opencv-python>=4.10.0      # Procesamiento avanzado de imágenes y filtros
+opencv-python-headless     # Procesamiento avanzado de imágenes y filtros
 numpy>=1.26.0              # Operaciones numéricas (necesario para OpenCV)
 
 # --- Certificación blockchain (Fase 5) ---
