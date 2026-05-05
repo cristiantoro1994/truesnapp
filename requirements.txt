@@ -6,19 +6,20 @@
 # Esto permite a pip elegir la última versión compatible con tu Python
 # que tenga "wheels" precompilados, evitando errores de compilación.
 
-# --- Framework de la interfaz ---
+#  Framework de la interfaz 
 streamlit>=1.39.0          # Framework principal para construir la app web
 
-# --- Procesamiento de imágenes (Fases 3 y 4) ---
+# Procesamiento de imágenes 
 Pillow>=10.4.0             # Manipulación básica de imágenes (abrir, guardar, redimensionar)
 opencv-python-headless     # Procesamiento avanzado de imágenes y filtros
 numpy>=1.26.0              # Operaciones numéricas (necesario para OpenCV)
 
-# --- Certificación blockchain (Fase 5) ---
+#  Certificación blockchain 
 # hashlib viene incluido en Python, no hay que instalarlo
 requests>=2.32.0           # Peticiones HTTP para registrar hashes en blockchain
 
-# --- Base de datos (Fase 6) ---
+# Base de datos 
 # sqlite3 viene incluido en Python, no hay que instalarlo
-streamlit-image-comparison>=0.0.4
-replicate>=0.25.0
+streamlit-image-comparison>=0.0.4 # muestra comparaciones visuales entre dos imagenes en streamlit
+replicate>=0.25.0  # plataforma que ejecuta modelos de IA en la nube 
+reportlab>=4.0.0 # generar pdf 

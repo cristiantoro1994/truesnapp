@@ -54,6 +54,9 @@ def inicializar_estado():
     if "proyecto_a_borrar" not in st.session_state:
         st.session_state.proyecto_a_borrar = None
 
+# Foto seleccionada para ver su certificado (Fase 5)
+    if "foto_certificado" not in st.session_state:
+        st.session_state.foto_certificado = None
 
 # 2. Cambiar de pantalla
 
@@ -397,3 +400,78 @@ def limpiar_archivos_temporales(proyecto):
                     archivo.unlink()
                 except OSError:
                     pass
+
+              
+# 7. FUNCIONES PARA GESTIÓN DE CERTIFICADOS BLOCKCHAIN 
+
+# Cuando el usuario certifica una foto optimizada, se genera un
+# comprobante .ots de OpenTimestamps que se guarda en disco.
+# Estructura:
+#   datos/imagenes/[id_proyecto]/certificados/[nombre_foto].ots
+# El comprobante .ots lleva el mismo nombre que la foto optimizada,
+# pero con extensión .ots. Así sabemos qué certificado pertenece a
+# qué foto.
+
+
+def carpeta_certificados(proyecto):
+    """
+    Devuelve la ruta de la subcarpeta de certificados blockchain
+    de un proyecto.
+
+    Ejemplo:
+      proyecto = {"id": "a1b2c3d4", ...}
+      → datos/imagenes/a1b2c3d4/certificados
+    """
+    return carpeta_proyecto(proyecto) / "certificados"
+
+
+def ruta_certificado(ruta_imagen, proyecto):
+    """
+    Calcula dónde se debe guardar (o leer) el comprobante .ots
+    de una imagen.
+
+    Mantiene el mismo nombre de la imagen, solo cambia la extensión
+    a .ots y la carpeta a certificados/.
+
+    Ejemplo:
+      ruta_imagen = datos/imagenes/a1b2c3d4/optimizadas/foto.jpg
+      → datos/imagenes/a1b2c3d4/certificados/foto.ots
+    """
+    # Aseguramos que la subcarpeta existe (la creamos si no)
+    carpeta_dest = carpeta_certificados(proyecto)
+    carpeta_dest.mkdir(parents=True, exist_ok=True)
+
+    # Cambiamos la extensión del archivo a .ots
+    nombre_ots = Path(ruta_imagen).stem + ".ots"
+    return carpeta_dest / nombre_ots
+
+
+def existe_certificado(ruta_imagen, proyecto):
+    """
+    Comprueba si una foto ya tiene un certificado blockchain.
+
+    Devuelve True si existe el archivo .ots, False si no.
+    """
+    return ruta_certificado(ruta_imagen, proyecto).exists()
+
+
+def guardar_comprobante(comprobante_bytes, ruta_imagen, proyecto):
+    """
+    Guarda en disco el comprobante .ots devuelto por OpenTimestamps.
+
+    Parámetros:
+      comprobante_bytes: contenido del archivo .ots como bytes.
+      ruta_imagen: ruta de la imagen optimizada que se certificó.
+      proyecto: diccionario con los datos del proyecto.
+
+    Devuelve True si se guardó bien, False si falló.
+    """
+    if comprobante_bytes is None:
+        return False
+
+    try:
+        ruta_dest = ruta_certificado(ruta_imagen, proyecto)
+        ruta_dest.write_bytes(comprobante_bytes)
+        return True
+    except OSError:
+        return False

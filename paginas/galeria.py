@@ -1,24 +1,17 @@
-# =====================================================================
-# paginas/galeria.py
-# =====================================================================
 # Galería de imágenes de un proyecto.
-#
 # El usuario puede:
 #   - Ver todas las fotos del proyecto en una rejilla
 #   - Subir nuevas fotos (desde móvil o escritorio)
 #   - Optimizar fotos con OpenCV + IA Real-ESRGAN (Fase 4)
 #   - Comparar original/optimizada con slider deslizante
 #   - Re-optimizar (borra solo la versión optimizada y reprocesa)
+#   - Certificar fotos en blockchain (Fase 5)
+#   - Ver el certificado de las fotos ya certificadas
 #   - Eliminar fotos con doble confirmación
-#
-# Las fotos se guardan en: datos/imagenes/[id_proyecto]/
-# Las versiones optimizadas se guardan en: datos/imagenes/[id_proyecto]/optimizadas/
-# =====================================================================
 
 import streamlit as st
-from streamlit_image_comparison import image_comparison  # Slider antes/después
+from streamlit_image_comparison import image_comparison
 
-# Funciones auxiliares (Fase 3 + Fase 4)
 from utils.helpers import (
     guardar_imagen,
     listar_imagenes,
@@ -26,11 +19,11 @@ from utils.helpers import (
     ruta_imagen_optimizada,
     existe_version_optimizada,
     limpiar_archivos_temporales,
+    ruta_certificado,
+    existe_certificado,
+    guardar_comprobante,
 )
 
-# Capa 1: optimización con OpenCV (Fase 4)
-# Importante: usamos 'guardar_imagen_cv' (no 'guardar_imagen') para
-# evitar conflicto con la función del mismo nombre en helpers.py
 from procesamiento.optimizar import (
     leer_imagen,
     guardar_imagen_cv,
@@ -40,27 +33,26 @@ from procesamiento.optimizar import (
     mejorar_nitidez,
 )
 
-# Capa 2: optimización con IA (Real-ESRGAN vía Replicate)
 from procesamiento.optimizar_ia import (
     hay_clave_replicate,
     optimizar_con_ia,
+)
+
+from blockchain.certificar import calcular_hash
+from blockchain.registrar_blockchain import (
+    registrar_hash_en_blockchain,
+    opentimestamps_disponible,
 )
 
 
 def mostrar():
     """Muestra la galería de imágenes del proyecto seleccionado."""
 
-    # -----------------------------------------------------------------
-    # Botón de volver (siempre arriba)
-    # -----------------------------------------------------------------
     if st.button("← Volver", key="volver_galeria"):
         st.session_state.foto_a_borrar = None
         st.session_state.pagina = "dashboard"
         st.rerun()
 
-    # -----------------------------------------------------------------
-    # Buscar el proyecto actual en la lista
-    # -----------------------------------------------------------------
     proyecto = obtener_proyecto_actual()
 
     if proyecto is None:
@@ -69,18 +61,10 @@ def mostrar():
         st.rerun()
         return
 
-    # Limpiar archivos temporales que pudieran haber quedado
-    # de procesos de optimización interrumpidos previamente
     limpiar_archivos_temporales(proyecto)
 
-    # -----------------------------------------------------------------
-    # Cabecera: nombre del proyecto
-    # -----------------------------------------------------------------
     st.markdown(f"## 🏠 {proyecto['nombre']}")
 
-    # -----------------------------------------------------------------
-    # Zona de subida de fotos
-    # -----------------------------------------------------------------
     st.markdown("### 📤 Subir fotos")
 
     archivos_subidos = st.file_uploader(
@@ -95,9 +79,6 @@ def mostrar():
 
     st.markdown("---")
 
-    # -----------------------------------------------------------------
-    # Galería: mostrar las fotos del proyecto
-    # -----------------------------------------------------------------
     imagenes = listar_imagenes(proyecto)
     total = len(imagenes)
 
@@ -127,11 +108,7 @@ def obtener_proyecto_actual():
 
 
 def procesar_archivos_subidos(archivos_subidos, proyecto):
-    """
-    Guarda en el disco SOLO las fotos que aún no se hayan procesado.
-    Streamlit mantiene los archivos en file_uploader entre reruns,
-    por eso usamos un conjunto de IDs procesados para no duplicar.
-    """
+    """Guarda en el disco las fotos nuevas (sin duplicar)."""
     clave_estado = f"archivos_procesados_{proyecto['id']}"
 
     if clave_estado not in st.session_state:
@@ -158,7 +135,7 @@ def procesar_archivos_subidos(archivos_subidos, proyecto):
 
 
 def mostrar_rejilla_imagenes(imagenes, proyecto):
-    """Muestra las imágenes en una rejilla de 3 columnas, con botones."""
+    """Muestra las imágenes en una rejilla de 3 columnas."""
     columnas_por_fila = 3
 
     for i in range(0, len(imagenes), columnas_por_fila):
@@ -177,55 +154,46 @@ def mostrar_miniatura_completa(ruta_imagen, proyecto):
     Muestra una miniatura de la imagen + botones de acción.
 
     Si la foto NO está optimizada:
-      - Muestra solo la original (a tamaño completo).
-      - Botón "✨ Optimizar".
-      - Botón "🗑️ Borrar".
+      - Muestra la original.
+      - Botón "✨ Optimizar" + "🗑️ Borrar".
 
     Si la foto SÍ está optimizada:
-      - Muestra slider deslizante con original y optimizada.
+      - Muestra slider Original / Optimizada.
       - Indicador "✅ Optimizada".
-      - Botón "🔄 Re-optimizar" (borra solo la optimizada y reoptimiza).
-      - Botón "🗑️ Borrar" (borra ambas, con doble confirmación).
+      - Si NO está certificada: botón "🔐 Certificar".
+      - Si SÍ está certificada: botón "🔐 Ver certificado".
+      - Botón "🔄 Re-optimizar" + "🗑️ Borrar".
     """
-    # ----- Identificador único de esta foto -----
     id_foto = str(ruta_imagen)
 
-    # ----- Comprobación de borrado pendiente -----
     foto_pendiente = st.session_state.get("foto_a_borrar", None)
 
     if foto_pendiente == id_foto:
-        # Modo confirmación de borrado
         st.image(str(ruta_imagen), use_container_width=True)
         st.warning("¿Seguro? Pulsa otra vez para borrar.")
         if st.button("🗑️ Confirmar borrado", key=f"confirmar_{id_foto}"):
             eliminar_foto_completa(ruta_imagen, proyecto)
         return
 
-    # ----- Estado: ¿está optimizada? -----
     optimizada = existe_version_optimizada(ruta_imagen, proyecto)
 
     if optimizada:
-        # ===== MODO COMPARACIÓN: slider deslizante interactivo =====
         ruta_optimizada = ruta_imagen_optimizada(ruta_imagen, proyecto)
 
-        # Slider que el usuario puede arrastrar para comparar
-        # las dos versiones de la imagen.
         image_comparison(
             img1=str(ruta_imagen),
             img2=str(ruta_optimizada),
             label1="Original",
             label2="✨ Optimizada",
-            width=500,
+            width=300,
             starting_position=50,
             show_labels=True,
             make_responsive=True,
             in_memory=True,
         )
     else:
-        # ===== MODO NORMAL: solo la original =====
         st.image(str(ruta_imagen), use_container_width=True)
 
-    # ----- Nombre limpio del archivo (común a ambos modos) -----
     nombre_limpio = quitar_id_del_nombre(ruta_imagen.name)
     st.markdown(
         f"<p style='font-size: 0.75rem; color: #A0A6AC; "
@@ -234,9 +202,7 @@ def mostrar_miniatura_completa(ruta_imagen, proyecto):
         unsafe_allow_html=True,
     )
 
-    # ----- Botones de acción -----
     if optimizada:
-        # Indicador verde de optimizada
         st.markdown(
             "<p style='text-align: center; color: #27AE60; "
             "font-size: 0.85rem; font-weight: 600; margin: 0.3rem 0;'>"
@@ -244,15 +210,28 @@ def mostrar_miniatura_completa(ruta_imagen, proyecto):
             unsafe_allow_html=True,
         )
 
-        # Botón de re-optimizar (borra solo la optimizada y reoptimiza)
+        certificada = existe_certificado(ruta_imagen, proyecto)
+
+        if certificada:
+            # Botón clicable que lleva a la pantalla del certificado
+            if st.button(
+                "🔐 Ver certificado",
+                key=f"vercertificado_{id_foto}",
+                use_container_width=True,
+            ):
+                st.session_state.foto_certificado = id_foto
+                st.session_state.pagina = "certificado"
+                st.rerun()
+        else:
+            if st.button("🔐 Certificar", key=f"certificar_{id_foto}"):
+                certificar_foto(ruta_imagen, proyecto)
+
         if st.button("🔄 Re-optimizar", key=f"reoptimizar_{id_foto}"):
             reoptimizar_foto(ruta_imagen, proyecto)
     else:
-        # Botón para optimizar (foto sin optimizar todavía)
         if st.button("✨ Optimizar", key=f"optimizar_{id_foto}"):
             optimizar_foto(ruta_imagen, proyecto)
 
-    # ----- Botón borrar (siempre visible) -----
     if st.button("🗑️ Borrar", key=f"borrar_{id_foto}"):
         st.session_state.foto_a_borrar = id_foto
         st.rerun()
@@ -260,110 +239,59 @@ def mostrar_miniatura_completa(ruta_imagen, proyecto):
 
 def optimizar_foto(ruta_imagen, proyecto):
     """
-    Aplica el pipeline híbrido a una foto:
-      CAPA 1: OpenCV (siempre)
-      CAPA 2: Real-ESRGAN vía Replicate (si está configurado y disponible)
-
-    Si la CAPA 2 falla por cualquier motivo (sin internet, sin créditos,
-    error del servidor), guardamos el resultado de la CAPA 1.
-    El usuario nunca se queda con las manos vacías.
-
-    El procesamiento se descompone en 6 fases visibles:
-      1. Lectura + reducción de ruido
-      2. Balance de color
-      3. Brillo y contraste
-      4. Nitidez
-      5. (Opcional) Mejora con IA en la nube
-      6. Guardado del resultado final
+    Pipeline híbrido: OpenCV (siempre) + Real-ESRGAN (si hay clave).
     """
     import time
 
-    # Calculamos dónde guardar la versión optimizada
     ruta_destino = ruta_imagen_optimizada(ruta_imagen, proyecto)
 
-    # -----------------------------------------------------------------
-    # Comprobamos si podemos usar la capa de IA
-    # -----------------------------------------------------------------
     usar_ia = hay_clave_replicate()
 
-    # -----------------------------------------------------------------
-    # Crear los componentes visuales de la animación
-    # -----------------------------------------------------------------
     contenedor_mensaje = st.empty()
     barra_progreso = st.progress(0)
 
-    # Archivo temporal donde guardar el resultado de OpenCV
-    # antes de enviarlo a la IA
     ruta_intermedia = ruta_imagen_optimizada(ruta_imagen, proyecto)
 
     try:
-        # -------------------------------------------------------------
-        # FASE 1: Leer imagen + reducir ruido
-        # -------------------------------------------------------------
         contenedor_mensaje.info("🧹 Limpiando ruido de la imagen...")
         barra_progreso.progress(10)
 
         imagen = leer_imagen(ruta_imagen)
         if imagen is None:
-            contenedor_mensaje.error(
-                "No se pudo leer la imagen. Inténtalo de nuevo."
-            )
+            contenedor_mensaje.error("No se pudo leer la imagen. Inténtalo de nuevo.")
             return
 
         imagen = reducir_ruido(imagen)
         barra_progreso.progress(25 if usar_ia else 35)
         time.sleep(0.2)
 
-        # -------------------------------------------------------------
-        # FASE 2: Balance de color
-        # -------------------------------------------------------------
         contenedor_mensaje.info("🎨 Equilibrando los colores...")
         imagen = balancear_color(imagen)
         barra_progreso.progress(40 if usar_ia else 55)
         time.sleep(0.2)
 
-        # -------------------------------------------------------------
-        # FASE 3: Brillo y contraste
-        # -------------------------------------------------------------
         contenedor_mensaje.info("💡 Mejorando la iluminación...")
         imagen = ajustar_brillo_contraste(imagen)
         barra_progreso.progress(50 if usar_ia else 75)
         time.sleep(0.2)
 
-        # -------------------------------------------------------------
-        # FASE 4: Nitidez
-        # -------------------------------------------------------------
         contenedor_mensaje.info("🔪 Realzando los detalles...")
         imagen = mejorar_nitidez(imagen)
         barra_progreso.progress(60 if usar_ia else 90)
         time.sleep(0.2)
 
-        # -------------------------------------------------------------
-        # FASE 5 (opcional): Mejora con IA en la nube
-        # -------------------------------------------------------------
         if usar_ia:
-            # Primero guardamos el resultado de OpenCV en un archivo
-            # temporal, porque la función de IA recibe una RUTA, no
-            # una matriz. Reutilizamos la ruta destino pero la
-            # sobrescribiremos al final.
             guardar_imagen_cv(imagen, ruta_intermedia)
 
-            contenedor_mensaje.info(
-                "🤖 Aplicando IA profesional (Real-ESRGAN)..."
-            )
+            contenedor_mensaje.info("🤖 Aplicando IA profesional (Real-ESRGAN)...")
             barra_progreso.progress(75)
 
-            # Llamamos a Replicate. Esta llamada puede tardar 5-15s.
             imagen_ia = optimizar_con_ia(ruta_intermedia)
 
             if imagen_ia is not None:
-                # ✅ La IA funcionó: usamos su resultado
                 imagen = imagen_ia
-                contenedor_mensaje.success(
-                    "✨ ¡IA aplicada correctamente!"
-                )
+                contenedor_mensaje.success("✨ ¡IA aplicada correctamente!")
             else:
-                # ⚠️ La IA falló: nos quedamos con el resultado de OpenCV
                 contenedor_mensaje.warning(
                     "⚠️ La IA no estuvo disponible. "
                     "Se usará el resultado de la optimización clásica."
@@ -372,20 +300,12 @@ def optimizar_foto(ruta_imagen, proyecto):
             barra_progreso.progress(90)
             time.sleep(0.4)
 
-        # -------------------------------------------------------------
-        # FASE 6: Guardar resultado final
-        # -------------------------------------------------------------
         contenedor_mensaje.info("💾 Guardando la versión optimizada...")
         guardar_imagen_cv(imagen, ruta_destino)
         barra_progreso.progress(100)
         time.sleep(0.3)
 
-        # -------------------------------------------------------------
-        # Final: mensaje de éxito y recarga
-        # -------------------------------------------------------------
-        contenedor_mensaje.success(
-            "✅ ¡Foto optimizada correctamente!"
-        )
+        contenedor_mensaje.success("✅ ¡Foto optimizada correctamente!")
         time.sleep(0.6)
         st.rerun()
 
@@ -394,37 +314,101 @@ def optimizar_foto(ruta_imagen, proyecto):
         barra_progreso.empty()
 
 
-def reoptimizar_foto(ruta_imagen, proyecto):
-    """
-    Borra solo la versión optimizada y vuelve a procesarla.
+def certificar_foto(ruta_imagen, proyecto):
+    """Certifica una foto optimizada en blockchain."""
+    import time
 
-    La imagen original NO se toca: queda intacta.
-    Útil cuando el usuario no está conforme con el resultado y
-    quiere generar una nueva versión optimizada desde cero.
-    """
-    # 1. Borramos la versión optimizada existente
+    ruta_optimizada = ruta_imagen_optimizada(ruta_imagen, proyecto)
+
+    contenedor_mensaje = st.empty()
+    barra_progreso = st.progress(0)
+
+    try:
+        contenedor_mensaje.info("🔍 Verificando conexión con la red...")
+        barra_progreso.progress(10)
+
+        if not opentimestamps_disponible():
+            contenedor_mensaje.error(
+                "⚠️ No se pudo conectar con la red blockchain. "
+                "Asegúrate de que OpenTimestamps está instalado."
+            )
+            barra_progreso.empty()
+            return
+
+        time.sleep(0.3)
+
+        contenedor_mensaje.info("🧬 Calculando huella digital de la foto...")
+        barra_progreso.progress(30)
+
+        hash_foto = calcular_hash(ruta_optimizada)
+
+        if hash_foto is None:
+            contenedor_mensaje.error("❌ No se pudo leer la imagen optimizada.")
+            barra_progreso.empty()
+            return
+
+        time.sleep(0.3)
+
+        contenedor_mensaje.info(
+            "🪙 Registrando en la blockchain de Bitcoin... "
+            "(esto puede tardar 5-30 segundos)"
+        )
+        barra_progreso.progress(60)
+
+        comprobante = registrar_hash_en_blockchain(hash_foto)
+
+        if comprobante is None:
+            contenedor_mensaje.warning(
+                "⚠️ No se pudo registrar en blockchain en este momento. "
+                "Inténtalo de nuevo en unos minutos."
+            )
+            barra_progreso.empty()
+            return
+
+        barra_progreso.progress(85)
+
+        contenedor_mensaje.info("💾 Guardando el certificado...")
+
+        exito = guardar_comprobante(comprobante, ruta_imagen, proyecto)
+
+        if not exito:
+            contenedor_mensaje.error("❌ No se pudo guardar el certificado en disco.")
+            barra_progreso.empty()
+            return
+
+        barra_progreso.progress(100)
+        time.sleep(0.4)
+
+        contenedor_mensaje.success("✅ ¡Foto certificada en blockchain correctamente!")
+        time.sleep(0.8)
+        st.rerun()
+
+    except Exception as error:
+        contenedor_mensaje.error(f"Error al certificar: {error}")
+        barra_progreso.empty()
+
+
+def reoptimizar_foto(ruta_imagen, proyecto):
+    """Borra la versión optimizada y vuelve a procesarla."""
     ruta_optimizada = ruta_imagen_optimizada(ruta_imagen, proyecto)
     if ruta_optimizada.exists():
         eliminar_imagen(ruta_optimizada)
 
-    # 2. Volvemos a optimizar la foto original
-    # (esto reutiliza toda la animación de progreso de optimizar_foto)
     optimizar_foto(ruta_imagen, proyecto)
 
 
 def eliminar_foto_completa(ruta_imagen, proyecto):
-    """
-    Elimina una foto y, si existe, también su versión optimizada.
-    """
-    # Borrar original
+    """Elimina una foto y todos sus archivos relacionados."""
     eliminar_imagen(ruta_imagen)
 
-    # Si existe la versión optimizada, también la borramos
     ruta_optimizada = ruta_imagen_optimizada(ruta_imagen, proyecto)
     if ruta_optimizada.exists():
         eliminar_imagen(ruta_optimizada)
 
-    # Limpiar estado y recargar
+    ruta_cert = ruta_certificado(ruta_imagen, proyecto)
+    if ruta_cert.exists():
+        eliminar_imagen(ruta_cert)
+
     st.session_state.foto_a_borrar = None
     st.rerun()
 

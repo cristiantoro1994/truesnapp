@@ -15,6 +15,7 @@ from utils.helpers import (
     listar_imagenes,
     carpeta_proyecto,
     existe_version_optimizada,
+    existe_certificado,
 )
 
 def mostrar():
@@ -96,12 +97,15 @@ def mostrar_tarjeta_modo_normal(proyecto):
     total_fotos = len(imagenes)
 
     # Contar cuántas de esas fotos tienen versión optimizada
+    # Contar cuántas de esas fotos tienen versión optimizada
     fotos_optimizadas = sum(
         1 for img in imagenes if existe_version_optimizada(img, proyecto)
     )
 
-    # Las certificadas se rellenan en la Fase 5 (Blockchain)
-    fotos_certificadas = proyecto.get("fotos_certificadas", 0)
+    # Contar cuántas de esas fotos tienen certificado blockchain (Fase 5)
+    fotos_certificadas = sum(
+        1 for img in imagenes if existe_certificado(img, proyecto)
+    )
 
     with st.container(border=True):
         # 3 columnas: info | Abrir | 🗑️
